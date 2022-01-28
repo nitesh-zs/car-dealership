@@ -35,6 +35,9 @@ func main() {
 	r.HandleFunc("/car/{id}", h.HandleUpdate).Methods(http.MethodPut)
 	r.HandleFunc("/car/{id}", h.HandleDelete).Methods(http.MethodDelete)
 
+	// set middlewares
+	r.Use(handler.AuthMiddleware)
+
 	// start server
 	log.Println(http.ListenAndServe(":4000", r))
 }

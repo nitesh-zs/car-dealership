@@ -20,6 +20,19 @@ func New(s service.CarService) handler {
 	return handler{svc: s}
 }
 
+func AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check x-api-key in request header
+		if r.Header.Get("x-api-key") != "nitesh-zs" {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"error":{"code":"Authorization error","message":"A valid 'x-api-key' must be set in request headers"}}`))
+			return
+		}
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (h handler) HandleGetAll(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	q := r.URL.Query()
