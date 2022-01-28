@@ -33,8 +33,16 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func RespHeaderMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// set Content-Type in response header
+		w.Header().Set("Content-Type", "application/json")
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (h handler) HandleGetAll(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	q := r.URL.Query()
 	brand := q.Get("brand")
 	withEngine := q.Get("withEngine")
@@ -63,7 +71,6 @@ func (h handler) HandleGetAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) HandleGetByID(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	vars := mux.Vars(r)
 	ID := vars["id"]
 
@@ -95,7 +102,6 @@ func (h handler) HandleGetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	var car model.Car
 
 	body, err := io.ReadAll(r.Body)
@@ -172,7 +178,6 @@ func (h handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	var car model.Car
 
 	body, err := io.ReadAll(r.Body)
@@ -262,7 +267,6 @@ func (h handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 	ID := mux.Vars(r)["id"]
 
 	err := h.svc.Delete(ID)

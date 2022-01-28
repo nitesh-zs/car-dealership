@@ -37,6 +37,7 @@ func main() {
 
 	// set middlewares
 	r.Use(handler.AuthMiddleware)
+	r.Use(handler.RespHeaderMiddleware)
 
 	// start server
 	log.Println(http.ListenAndServe(":4000", r))
