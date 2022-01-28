@@ -26,11 +26,12 @@ func main() {
 
 	// register handlers
 	r := mux.NewRouter()
+
+	r.StrictSlash(true)
+
 	r.HandleFunc("/car", h.HandleGetAll).Methods(http.MethodGet)
-	r.HandleFunc("/car/", h.HandleGetAll).Methods(http.MethodGet)
 	r.HandleFunc("/car/{id}", h.HandleGetByID).Methods(http.MethodGet)
 	r.HandleFunc("/car", h.HandleCreate).Methods(http.MethodPost)
-	r.HandleFunc("/car/", h.HandleCreate).Methods(http.MethodPost)
 	r.HandleFunc("/car/{id}", h.HandleUpdate).Methods(http.MethodPut)
 	r.HandleFunc("/car/{id}", h.HandleDelete).Methods(http.MethodDelete)
 
