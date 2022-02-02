@@ -10,6 +10,7 @@ type service struct {
 	engineStore store.EngineStore
 }
 
+//nolint:revive //service should not be exported
 func New(c store.CarStore, e store.EngineStore) service {
 	return service{
 		carStore:    c,
@@ -25,74 +26,81 @@ func (s service) GetAll(brand string, withEngine bool) ([]model.Car, error) {
 
 	// if withEngine is true, then populate the Engine data in Cars
 	if withEngine {
-		for i, _ := range cars {
+		for i := range cars {
 			car := cars[i]
 			eID := car.Engine.ID
 			engine, err := s.engineStore.GetByID(eID)
+
 			if err != nil {
 				return nil, err
 			}
-			cars[i].Engine = engine
+
+			cars[i].Engine = *engine
 		}
 	}
 
 	return cars, nil
 }
 
-func (s service) GetByID(ID string) (model.Car, error) {
-	car, err := s.carStore.GetByID(ID)
+func (s service) GetByID(id string) (*model.Car, error) {
+	car, err := s.carStore.GetByID(id)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
 	engine, err := s.engineStore.GetByID(car.Engine.ID)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
-	car.Engine = engine
+	car.Engine = *engine
+
 	return car, nil
 }
 
-func (s service) Create(car model.Car) (model.Car, error) {
-	engine, err := s.engineStore.Create(car.Engine)
+func (s service) Create(car *model.Car) (*model.Car, error) {
+	engine, err := s.engineStore.Create(&car.Engine)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
 	car.Engine.ID = engine.ID
 
 	newCar, err := s.carStore.Create(car)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
-	newCar.Engine = engine
+	newCar.Engine = *engine
+
 	return newCar, nil
 }
 
-func (s service) Update(car model.Car) (model.Car, error) {
-	updatedEngine, err := s.engineStore.Update(car.Engine)
-	if err != nil {
-		return model.Car{}, err
-	}
-
+func (s service) Update(car *model.Car) (*model.Car, error) {
 	updatedCar, err := s.carStore.Update(car)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
-	updatedCar.Engine = updatedEngine
+	car.Engine.ID = updatedCar.Engine.ID
+
+	updatedEngine, err := s.engineStore.Update(&car.Engine)
+	if err != nil {
+		return &model.Car{}, err
+	}
+
+	updatedCar.Engine = *updatedEngine
+
 	return updatedCar, nil
 }
 
-func (s service) Delete(ID string) error {
-	car, err := s.carStore.GetByID(ID)
+func (s service) Delete(id string) error {
+	car, err := s.carStore.GetByID(id)
 	if err != nil {
 		return err
 	}
 
-	err = s.carStore.Delete(ID)
+	err = s.carStore.Delete(id)
 	if err != nil {
 		return err
 	}

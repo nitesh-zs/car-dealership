@@ -1,15 +1,20 @@
-package store
+package car
 
 import (
-	"carAPI/model"
 	"database/sql"
+	"log"
+
 	"github.com/google/uuid"
+
+	customErrors "carAPI/custom-errors"
+	"carAPI/model"
 )
 
 type store struct {
 	db *sql.DB
 }
 
+//nolint:revive //store should not be exported
 func New(db *sql.DB) store {
 	return store{db: db}
 }
@@ -34,7 +39,11 @@ func (s store) GetByBrand(brand string) ([]model.Car, error) {
 
 	defer func() {
 		rows.Close()
-		rows.Err()
+
+		err = rows.Err()
+		if err != nil {
+			log.Println(err)
+		}
 	}()
 
 	for rows.Next() {
@@ -42,78 +51,88 @@ func (s store) GetByBrand(brand string) ([]model.Car, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		cars = append(cars, car)
 	}
+
 	return cars, nil
 }
 
-func (s store) GetByID(ID string) (model.Car, error) {
+func (s store) GetByID(id string) (*model.Car, error) {
 	var car model.Car
 
-	row := s.db.QueryRow("select * from cars where carId = ?", ID)
+	row := s.db.QueryRow("select * from cars where carId = ?", id)
 	err := row.Scan(&car.ID, &car.Name, &car.YearOfManufacture, &car.Brand, &car.FuelType, &car.Engine.ID)
+
 	if err == sql.ErrNoRows {
-		return model.Car{}, carNotExists
-	}
-	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, customErrors.CarNotExists()
 	}
 
-	return car, nil
+	if err != nil {
+		return &model.Car{}, err
+	}
+
+	return &car, nil
 }
 
-func (s store) Create(car model.Car) (model.Car, error) {
+func (s store) Create(car *model.Car) (*model.Car, error) {
 	car.ID = uuid.NewString()
+
 	stmt, err := s.db.Prepare(`insert into cars (carId, name, yearOfManufacture, brand, fuelType, engineId)
 										values (?, ?, ?, ?, ?, ?)`)
+
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
 	defer stmt.Close()
 
 	_, err = stmt.Exec(car.ID, car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.Engine.ID)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
 	return car, nil
 }
 
-func (s store) Update(car model.Car) (model.Car, error) {
+func (s store) Update(car *model.Car) (*model.Car, error) {
+	// check if record exists in table
+	carFromDB, err := s.GetByID(car.ID)
+	if err != nil {
+		return &model.Car{}, err
+	}
+
 	stmt, err := s.db.Prepare(`update cars set name = ?, yearOfManufacture = ?, brand = ?, fuelType = ? where carId = ?`)
 
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
 	defer stmt.Close()
 
-	res, err := stmt.Exec(car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.ID)
+	_, err = stmt.Exec(car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.ID)
 	if err != nil {
-		return model.Car{}, err
+		return &model.Car{}, err
 	}
 
-	rowsAff, err := res.RowsAffected()
-	if rowsAff == 0 {
-		return model.Car{}, carNotExists
-	}
+	car.Engine.ID = carFromDB.Engine.ID
 
 	return car, nil
 }
 
-func (s store) Delete(ID string) error {
+func (s store) Delete(id string) error {
 	stmt, err := s.db.Prepare(`delete from cars where carId = ?`)
 	if err == sql.ErrNoRows {
-		return carNotExists
+		return customErrors.CarNotExists()
 	}
+
 	if err != nil {
 		return err
 	}
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(ID)
+	_, err = stmt.Exec(id)
 	if err != nil {
 		return err
 	}

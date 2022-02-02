@@ -1,26 +1,30 @@
-package store
+package engine
 
 import (
-	customErrors "carAPI/custom-errors"
-	"carAPI/model"
 	"errors"
+	"log"
+	"testing"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
-	"log"
-	"reflect"
-	"testing"
+	"github.com/stretchr/testify/assert"
+
+	customErrors "carAPI/custom-errors"
+	"carAPI/model"
 )
 
-var engine = model.Engine{
-	ID:            uuid.NewString(),
-	Displacement:  0,
-	NoOfCylinders: 0,
-	Range:         400,
+func engine() model.Engine {
+	return model.Engine{
+		ID:            uuid.NewString(),
+		Displacement:  0,
+		NoOfCylinders: 0,
+		Range:         400,
+	}
 }
 
-var engineNotExists customErrors.EngineNotExists
-
 func TestEngineStore_GetByID(t *testing.T) {
+	engine := engine()
+
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		log.Println(err)
@@ -33,33 +37,32 @@ func TestEngineStore_GetByID(t *testing.T) {
 		AddRow(engine.ID, engine.Displacement, engine.NoOfCylinders, engine.Range)
 
 	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs(engine.ID).WillReturnRows(rows)
-	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs("1").WillReturnError(engineNotExists)
+	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs("1").WillReturnError(customErrors.EngineNotExists())
 	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs("2").WillReturnError(errors.New("DB error"))
 
 	tests := []struct {
 		desc   string
 		id     string
-		engine model.Engine
+		engine *model.Engine
 		err    error
 	}{
-		{"Success", engine.ID, engine, nil},
-		{"Not exists", "1", model.Engine{}, engineNotExists},
-		{"DB error", "2", model.Engine{}, errors.New("DB error")},
+		{"Success", engine.ID, &engine, nil},
+		{"Not exists", "1", &model.Engine{}, customErrors.EngineNotExists()},
+		{"DB error", "2", &model.Engine{}, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
 		engine, err := store.GetByID(tc.id)
-		if !reflect.DeepEqual(err, tc.err) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected error: %v\nGot: %v", i, tc.desc, tc.err, err)
-		}
 
-		if !reflect.DeepEqual(engine, tc.engine) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, tc.engine, engine)
-		}
+		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
+
+		assert.Equalf(t, tc.engine, engine, "Testcase[%v] (%v)", i, tc.desc)
 	}
 }
 
 func TestEngineStore_Create(t *testing.T) {
+	engine := engine()
+
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		log.Println(err)
@@ -74,38 +77,34 @@ func TestEngineStore_Create(t *testing.T) {
 	prep := mock.ExpectPrepare(query)
 	prep.ExpectExec().WithArgs(sqlmock.AnyArg(), engine.Displacement, engine.NoOfCylinders, engine.Range).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+
 	prep = mock.ExpectPrepare(query)
 	prep.ExpectExec().WillReturnError(errors.New("DB error"))
 
 	tests := []struct {
 		desc     string
-		input    model.Engine
-		expected model.Engine
+		input    *model.Engine
+		expected *model.Engine
 		err      error
 	}{
-		{"Success", engine, engine, nil},
-		{"DB error", model.Engine{}, model.Engine{}, errors.New("DB error")},
+		{"Success", &engine, &engine, nil},
+		{"DB error", &model.Engine{}, &model.Engine{}, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
 		engine, err := store.Create(tc.input)
-		if !reflect.DeepEqual(err, tc.err) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected error: %v\nGot: %v", i, tc.desc, tc.err, err)
 
-			if engine.ID == tc.expected.ID {
-				t.Errorf("Testcase[%v] failed (%v)\nNew ID was not assigned", i, tc.desc)
-			}
-		}
+		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
 
 		engine.ID = tc.expected.ID
 
-		if !reflect.DeepEqual(engine, tc.expected) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, tc.expected, engine)
-		}
+		assert.Equalf(t, tc.expected, engine, "Testcase[%v] (%v)", i, tc.desc)
 	}
 }
 
 func TestEngineStore_Update(t *testing.T) {
+	engine := engine()
+
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		log.Println(err)
@@ -117,37 +116,45 @@ func TestEngineStore_Update(t *testing.T) {
 
 	query := "update engines set displacement = \\?, noOfCylinder = \\?, `range` = \\? where engineId = \\?"
 
+	// Success case
+	rows := sqlmock.NewRows([]string{"engineId", "displacement", "noOfCylinder", "range"}).
+		AddRow(engine.ID, engine.Displacement, engine.NoOfCylinders, engine.Range)
+	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs(engine.ID).WillReturnRows(rows)
 	prep := mock.ExpectPrepare(query)
 	prep.ExpectExec().WithArgs(0, 0, 400, engine.ID).WillReturnResult(sqlmock.NewResult(0, 1))
-	prep = mock.ExpectPrepare(query)
-	prep.ExpectExec().WillReturnError(engineNotExists)
+
+	// CarNotExists error
+	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs("").WillReturnError(customErrors.CarNotExists())
+
+	// DB error
+	rows.AddRow(engine.ID, engine.Displacement, engine.NoOfCylinders, engine.Range)
+	mock.ExpectQuery("select \\* from engines where engineId = \\?").WithArgs(engine.ID).WillReturnRows(rows)
 	prep = mock.ExpectPrepare(query)
 	prep.ExpectExec().WillReturnError(errors.New("DB error"))
 
 	tests := []struct {
 		desc     string
-		input    model.Engine
-		expected model.Engine
+		input    *model.Engine
+		expected *model.Engine
 		err      error
 	}{
-		{"Success", engine, engine, nil},
-		{"Not exists", model.Engine{}, model.Engine{}, engineNotExists},
-		{"DB error", model.Engine{}, model.Engine{}, errors.New("DB error")},
+		{"Success", &engine, &engine, nil},
+		{"Not exists", &model.Engine{}, &model.Engine{}, customErrors.CarNotExists()},
+		{"DB error", &engine, &model.Engine{}, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
 		engine, err := store.Update(tc.input)
-		if !reflect.DeepEqual(err, tc.err) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected error: %v\nGot: %v", i, tc.desc, tc.err, err)
-		}
 
-		if !reflect.DeepEqual(engine, tc.expected) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, tc.expected, engine)
-		}
+		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
+
+		assert.Equalf(t, tc.expected, engine, "Testcase[%v] (%v)", i, tc.desc)
 	}
 }
 
 func TestEngineStore_Delete(t *testing.T) {
+	engine := engine()
+
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		log.Println(err)
@@ -161,8 +168,10 @@ func TestEngineStore_Delete(t *testing.T) {
 
 	prep := mock.ExpectPrepare(query)
 	prep.ExpectExec().WithArgs(engine.ID).WillReturnResult(sqlmock.NewResult(0, 1))
+
 	prep = mock.ExpectPrepare(query)
-	prep.ExpectExec().WithArgs(engine.ID).WillReturnError(engineNotExists)
+	prep.ExpectExec().WithArgs(engine.ID).WillReturnError(customErrors.EngineNotExists())
+
 	prep = mock.ExpectPrepare(query)
 	prep.ExpectExec().WillReturnError(errors.New("DB error"))
 
@@ -172,14 +181,13 @@ func TestEngineStore_Delete(t *testing.T) {
 		err  error
 	}{
 		{"Success", engine.ID, nil},
-		{"Not exists", engine.ID, engineNotExists},
+		{"Not exists", engine.ID, customErrors.EngineNotExists()},
 		{"DB error", "", errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
 		err := store.Delete(tc.id)
-		if !reflect.DeepEqual(err, tc.err) {
-			t.Errorf("Testcase[%v] failed (%v)\nExpected error: %v\nGot: %v", i, tc.desc, tc.err, err)
-		}
+
+		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
 	}
 }

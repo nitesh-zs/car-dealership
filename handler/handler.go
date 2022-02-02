@@ -1,290 +1,310 @@
 package handler
 
 import (
-	customErrors "carAPI/custom-errors"
-	"carAPI/model"
-	"carAPI/service"
 	"encoding/json"
-	"github.com/gorilla/mux"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/gorilla/mux"
+
+	customErrors "carAPI/custom-errors"
+	"carAPI/model"
+	"carAPI/service"
 )
 
 type handler struct {
 	svc service.CarService
 }
 
+//nolint:revive //handler should not be exported
 func New(s service.CarService) handler {
 	return handler{svc: s}
 }
 
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// check x-api-key in request header
-		if r.Header.Get("x-api-key") != "nitesh-zs" {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":{"code":"Authorization error","message":"A valid 'x-api-key' must be set in request headers"}}`))
-			return
-		}
-		// Call the next handler
-		next.ServeHTTP(w, r)
-	})
-}
-
-func RespHeaderMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// set Content-Type in response header
-		w.Header().Set("Content-Type", "application/json")
-		// Call the next handler
-		next.ServeHTTP(w, r)
-	})
-}
-
-func (h handler) HandleGetAll(w http.ResponseWriter, r *http.Request) {
+func (h handler) Get(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	brand := q.Get("brand")
 	withEngine := q.Get("withEngine")
 
-	var we bool
-	if withEngine == "true" {
-		we = true
+	if withEngine == "" {
+		withEngine = "false"
+	}
+
+	we, err := strconv.ParseBool(withEngine)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid value of withEngine","message":"withEngine must be true or false"}}`)
+
+		return
 	}
 
 	cars, err := h.svc.GetAll(brand, we)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":{"code":"DB error"}}`))
+		handleServerErr(err, "", w)
 		return
 	}
 
 	resp, err := json.Marshal(cars)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":{"code":"DB error"}}`))
-		return
+		handleMarshalErr(err, w)
 	}
-	w.Write(resp)
+
+	_, _ = w.Write(resp)
 }
 
-func (h handler) HandleGetByID(w http.ResponseWriter, r *http.Request) {
+func (h handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	ID := vars["id"]
 
-	user, err := h.svc.GetByID(ID)
+	car, err := h.svc.GetByID(ID)
 	if err != nil {
-		switch err.(type) {
-		default:
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":{"code":"DB error"}}`))
-			return
-
-		case customErrors.CarNotExists:
-			log.Println(err)
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error":{"code":"entity not found","id":"` + ID + `"}}`))
-			return
-		}
-	}
-
-	resp, err := json.Marshal(user)
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":{"code":"DB error"}}`))
-		return
-	}
-	w.Write(resp)
-}
-
-func (h handler) HandleCreate(w http.ResponseWriter, r *http.Request) {
-	var car model.Car
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"cannot parse given body"}}`))
-		return
-	}
-
-	err = json.Unmarshal(body, &car)
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"cannot parse given body"}}`))
-		return
-	}
-
-	// validate necessary car parameters are passed
-	if car.Name == "" || car.Brand == "" || car.FuelType == "" || car.YearOfManufacture == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`))
-		return
-	}
-
-	// validate necessary engine parameters are passed
-	if !((car.Engine.Range != 0) || (car.Engine.Displacement != 0 && car.Engine.NoOfCylinders != 0)) {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`))
-		return
-	}
-
-	// validate year of manufacture
-	if car.YearOfManufacture < 1866 || car.YearOfManufacture > time.Now().Year() {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"invalid year of manufacture"}}`))
-		return
-	}
-
-	// validate brand
-	if car.Brand != "Tesla" && car.Brand != "Ferrari" && car.Brand != "Porsche" && car.Brand != "BMW" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"supported brands are Tesla, Ferrari, Porsche and BMW"}}`))
-		return
-	}
-
-	// validate fuel type
-	if car.FuelType != "Electric" && car.FuelType != "Diesel" && car.FuelType != "Petrol" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"fuelType must be Electric, Petrol or Diesel"}}`))
-		return
-	}
-
-	car, err = h.svc.Create(car)
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":{"code":"DB error"}}`))
+		handleServerErr(err, ID, w)
 		return
 	}
 
 	resp, err := json.Marshal(car)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":{"code":"DB error"}}`))
+		handleMarshalErr(err, w)
+		return
+	}
+
+	_, _ = w.Write(resp)
+}
+
+func (h handler) Create(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		handleParseErr(err, w)
+		return
+	}
+
+	var car model.Car
+
+	err = json.Unmarshal(body, &car)
+	if err != nil {
+		handleParseErr(err, w)
+		return
+	}
+
+	// validate params
+	if !validateParams(&car, w) {
+		return
+	}
+
+	// validate car
+	if !validateCar(&car, w) {
+		return
+	}
+
+	newCar, err := h.svc.Create(&car)
+	if err != nil {
+		handleServerErr(err, "", w)
+		return
+	}
+
+	resp, err := json.Marshal(newCar)
+	if err != nil {
+		handleMarshalErr(err, w)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write(resp)
+	_, _ = w.Write(resp)
 }
 
-func (h handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
-	var car model.Car
-
+func (h handler) Update(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"cannot parse given body"}}`))
+		handleParseErr(err, w)
 		return
 	}
+
+	var car model.Car
 
 	err = json.Unmarshal(body, &car)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"cannot parse given body"}}`))
+		handleParseErr(err, w)
 		return
 	}
 
-	// validate necessary car parameters are passed
-	if car.Name == "" || car.Brand == "" || car.FuelType == "" || car.YearOfManufacture == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`))
+	// validate params
+	if !validateParams(&car, w) {
 		return
 	}
 
-	// validate necessary engine parameters are passed
-	if !((car.Engine.Range != 0) || (car.Engine.Displacement != 0 && car.Engine.NoOfCylinders != 0)) {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`))
+	// validate car
+	if !validateCar(&car, w) {
 		return
 	}
 
-	// validate year of manufacture
-	if car.YearOfManufacture < 1866 || car.YearOfManufacture > time.Now().Year() {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"invalid year of manufacture"}}`))
-		return
-	}
+	id := mux.Vars(r)["id"]
+	car.ID = id
 
-	// validate brand
-	if car.Brand != "Tesla" && car.Brand != "Ferrari" && car.Brand != "Porsche" && car.Brand != "BMW" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"supported brands are Tesla, Ferrari, Porsche and BMW"}}`))
-		return
-	}
-
-	// validate fuel type
-	if car.FuelType != "Electric" && car.FuelType != "Diesel" && car.FuelType != "Petrol" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":{"code":"invalid body", "message":"fuelType must be Electric, Petrol or Diesel"}}`))
-		return
-	}
-
-	ID := mux.Vars(r)["id"]
-	car.ID = ID
-
-	car, err = h.svc.Update(car)
+	updatedCar, err := h.svc.Update(&car)
 	if err != nil {
-		switch err.(type) {
-		default:
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":{"code":"DB error"}}`))
-			return
-
-		case customErrors.CarNotExists:
-			log.Println(err)
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error":{"code":"entity not found","id":"` + ID + `"}}`))
-			return
-		}
+		handleServerErr(err, car.ID, w)
+		return
 	}
 
-	resp, err := json.Marshal(car)
+	resp, err := json.Marshal(updatedCar)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":{"code":"DB error"}}`))
+		handleMarshalErr(err, w)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
-	return
+	_, _ = w.Write(resp)
 }
 
-func (h handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
+func (h handler) Delete(w http.ResponseWriter, r *http.Request) {
 	ID := mux.Vars(r)["id"]
 
 	err := h.svc.Delete(ID)
 	if err != nil {
-		switch err.(type) {
-		default:
-			log.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":{"code":"DB error"}}`))
-			return
+		handleServerErr(err, ID, w)
+		return
+	}
 
-		case customErrors.CarNotExists:
-			log.Println(err)
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error":{"code":"entity not found","id":"` + ID + `"}}`))
-			return
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func handleServerErr(err error, id string, w http.ResponseWriter) {
+	switch err.(type) {
+	default:
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"error":{"code":"DB error"}}`)
+
+	case customErrors.EntityNotExists:
+		log.Println(err)
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"error":{"code":"entity not found","id":"`+id+`"}}`)
+	}
+}
+
+func handleMarshalErr(err error, w http.ResponseWriter) {
+	log.Println(err)
+	w.WriteHeader(http.StatusInternalServerError)
+	fmt.Fprint(w, `{"error":{"code":"Marshal error"}}`)
+}
+
+func handleParseErr(err error, w http.ResponseWriter) {
+	log.Println(err)
+	w.WriteHeader(http.StatusBadRequest)
+	fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"cannot parse given body"}}`)
+}
+
+func validateParams(car *model.Car, w http.ResponseWriter) bool {
+	// validate necessary car parameters are passed
+	if car.Name == "" || car.Brand == "" || car.FuelType == "" || car.YearOfManufacture == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
+							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`)
+
+		return false
+	}
+
+	// validate necessary engine parameters are passed
+	if !validateEngine(car, w) {
+		return false
+	}
+
+	return true
+}
+
+func validateCar(car *model.Car, w http.ResponseWriter) bool {
+	// validate year of manufacture
+	if !validateYearOfManufacture(car, w) {
+		return false
+	}
+
+	// validate brand
+	if !validateBrand(car, w) {
+		return false
+	}
+
+	// validate fuel type
+	if !validateFuelType(car, w) {
+		return false
+	}
+
+	return true
+}
+
+func validateEngine(car *model.Car, w http.ResponseWriter) bool {
+	switch car.FuelType {
+	case "Electric":
+		if !validateElectricEngine(car, w) {
+			return false
+		}
+
+	default:
+		if !validateNonElectricEngine(car, w) {
+			return false
 		}
 	}
-	w.WriteHeader(http.StatusNoContent)
-	return
+
+	return true
+}
+
+func validateYearOfManufacture(car *model.Car, w http.ResponseWriter) bool {
+	if (car.YearOfManufacture < 1866 && car.YearOfManufacture != 0) || car.YearOfManufacture > time.Now().Year() {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"invalid year of manufacture"}}`)
+
+		return false
+	}
+
+	return true
+}
+
+func validateBrand(car *model.Car, w http.ResponseWriter) bool {
+	if car.Brand != "" && car.Brand != "Tesla" && car.Brand != "Ferrari" && car.Brand != "Porsche" && car.Brand != "BMW" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"supported brands are Tesla, Ferrari, Porsche and BMW"}}`)
+
+		return false
+	}
+
+	return true
+}
+
+func validateFuelType(car *model.Car, w http.ResponseWriter) bool {
+	if car.FuelType != "" && car.FuelType != "Electric" && car.FuelType != "Diesel" && car.FuelType != "Petrol" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"fuelType must be Electric, Petrol or Diesel"}}`)
+
+		return false
+	}
+
+	return true
+}
+
+func validateElectricEngine(car *model.Car, w http.ResponseWriter) bool {
+	if car.Engine.Range == 0 || car.Engine.Displacement != 0 || car.Engine.NoOfCylinders != 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
+							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`)
+
+		return false
+	}
+
+	return true
+}
+
+func validateNonElectricEngine(car *model.Car, w http.ResponseWriter) bool {
+	if car.Engine.Range != 0 || car.Engine.Displacement == 0 || car.Engine.NoOfCylinders == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
+							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`)
+
+		return false
+	}
+
+	return true
 }

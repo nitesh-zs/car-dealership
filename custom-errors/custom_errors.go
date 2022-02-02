@@ -1,12 +1,19 @@
-package customErrors
+package customerrors
 
-type CarNotExists string
-type EngineNotExists string
+import "fmt"
 
-func (e CarNotExists) Error() string {
-	return "Car not exists"
+type EntityNotExists string
+
+func (e EntityNotExists) Error() string {
+	return fmt.Sprintf("%v not exists", string(e))
 }
 
-func (e EngineNotExists) Error() string {
-	return "Engine not exists"
+func CarNotExists() EntityNotExists {
+	var e EntityNotExists = "Car"
+	return e
+}
+
+func EngineNotExists() EntityNotExists {
+	var e EntityNotExists = "Engine"
+	return e
 }

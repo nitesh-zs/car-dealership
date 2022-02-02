@@ -1,14 +1,18 @@
 package main
 
 import (
-	"carAPI/handler"
-	"carAPI/service"
-	"carAPI/store"
 	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/gorilla/mux"
+
+	"carAPI/handler"
+	"carAPI/middleware"
+	"carAPI/service"
+	"carAPI/store/car"
+	"carAPI/store/engine"
 )
 
 func main() {
@@ -18,9 +22,11 @@ func main() {
 		log.Println(err)
 	}
 
+	defer db.Close()
+
 	// initialize dependencies
-	carStore := store.New(db)
-	engineStore := store.NewEngineStore(db)
+	carStore := car.New(db)
+	engineStore := engine.NewEngineStore(db)
 	svc := service.New(carStore, engineStore)
 	h := handler.New(svc)
 
@@ -29,15 +35,15 @@ func main() {
 
 	r.StrictSlash(true)
 
-	r.HandleFunc("/car", h.HandleGetAll).Methods(http.MethodGet)
-	r.HandleFunc("/car/{id}", h.HandleGetByID).Methods(http.MethodGet)
-	r.HandleFunc("/car", h.HandleCreate).Methods(http.MethodPost)
-	r.HandleFunc("/car/{id}", h.HandleUpdate).Methods(http.MethodPut)
-	r.HandleFunc("/car/{id}", h.HandleDelete).Methods(http.MethodDelete)
+	r.HandleFunc("/car", h.Get).Methods(http.MethodGet)
+	r.HandleFunc("/car/{id}", h.GetByID).Methods(http.MethodGet)
+	r.HandleFunc("/car", h.Create).Methods(http.MethodPost)
+	r.HandleFunc("/car/{id}", h.Update).Methods(http.MethodPut)
+	r.HandleFunc("/car/{id}", h.Delete).Methods(http.MethodDelete)
 
 	// set middlewares
-	r.Use(handler.AuthMiddleware)
-	r.Use(handler.RespHeaderMiddleware)
+	r.Use(middleware.AuthMiddleware)
+	r.Use(middleware.RespHeaderMiddleware)
 
 	// start server
 	log.Println(http.ListenAndServe(":4000", r))
