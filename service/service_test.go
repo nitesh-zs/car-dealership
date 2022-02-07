@@ -135,6 +135,43 @@ func TestService_GetAll(t *testing.T) {
 	}
 }
 
+func TestService_GetAll_WithoutEngine(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	m := mocks.NewMockCarStore(mockCtrl)
+	s := mocks.NewMockEngineStore(mockCtrl)
+
+	m.EXPECT().GetByBrand("Tesla").Return([]model.Car{car3()}, nil)
+
+	svc := New(m, s)
+
+	cars, err := svc.GetAll("Tesla", false)
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, []model.Car{car3()}, cars)
+}
+
+func TestService_GetAll_ErrorGettingEngines(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	m := mocks.NewMockCarStore(mockCtrl)
+	s := mocks.NewMockEngineStore(mockCtrl)
+
+	m.EXPECT().GetByBrand("Tesla").Return([]model.Car{car3()}, nil)
+	s.EXPECT().GetAll().Return(nil, errors.New("server error"))
+
+	svc := New(m, s)
+
+	cars, err := svc.GetAll("Tesla", true)
+
+	assert.Equal(t, errors.New("server error"), err)
+
+	assert.Equal(t, []model.Car(nil), cars)
+}
+
 func TestService_GetByID(t *testing.T) {
 	car1 := car1()
 
@@ -323,6 +360,7 @@ func TestService_Update(t *testing.T) {
 
 func TestService_Delete(t *testing.T) {
 	car1 := car1()
+	car2 := car2()
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -340,6 +378,12 @@ func TestService_Delete(t *testing.T) {
 	c.EXPECT().GetByID("3").Return(&model.Car{ID: "3"}, nil)
 	c.EXPECT().Delete("3").Return(errors.New("server error"))
 
+	c.EXPECT().GetByID("4").Return(nil, errors.New("server error"))
+
+	c.EXPECT().GetByID(car2.ID).Return(&car2, nil)
+	c.EXPECT().Delete(car2.ID).Return(nil)
+	e.EXPECT().Delete(car2.ID).Return(errors.New("server error"))
+
 	tests := []struct {
 		desc string
 		id   string
@@ -347,7 +391,9 @@ func TestService_Delete(t *testing.T) {
 	}{
 		{"Success", "1", nil},
 		{"Car not exists", "2", customErrors.CarNotExists()},
-		{"Server error", "3", errors.New("server error")},
+		{"Server error while deleting car", "3", errors.New("server error")},
+		{"Error in getByID", "4", errors.New("server error")},
+		{"Server error while deleting engine", car2.ID, errors.New("server error")},
 	}
 
 	svc := New(c, e)
