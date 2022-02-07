@@ -95,14 +95,7 @@ func (s store) Create(car *model.Car) (*model.Car, error) {
 }
 
 func (s store) Update(car *model.Car) (*model.Car, error) {
-	// check if record exists in table
-	carFromDB, err := s.GetByID(car.ID)
-	if err != nil {
-		return nil, err
-	}
-
 	stmt, err := s.db.Prepare(updateCar)
-
 	if err != nil {
 		return nil, err
 	}
@@ -113,8 +106,6 @@ func (s store) Update(car *model.Car) (*model.Car, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	car.Engine.ID = carFromDB.Engine.ID
 
 	return car, nil
 }

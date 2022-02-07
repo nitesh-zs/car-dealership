@@ -77,12 +77,17 @@ func (s service) Create(car *model.Car) (*model.Car, error) {
 }
 
 func (s service) Update(car *model.Car) (*model.Car, error) {
+	carFromDB, err := s.carStore.GetByID(car.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	updatedCar, err := s.carStore.Update(car)
 	if err != nil {
 		return nil, err
 	}
 
-	car.Engine.ID = updatedCar.Engine.ID
+	car.Engine.ID = carFromDB.Engine.ID
 
 	updatedEngine, err := s.engineStore.Update(&car.Engine)
 	if err != nil {

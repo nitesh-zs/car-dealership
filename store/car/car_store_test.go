@@ -162,21 +162,14 @@ func TestStore_Update(t *testing.T) {
 	query := "update cars set name = \\?, yearOfManufacture = \\?, brand = \\?, fuelType = \\? where carId = \\?"
 
 	// success case
-	rows := sqlmock.NewRows([]string{"carID", "name", "yearOfManufacture", "brand", "fuelType", "engineId"}).
-		AddRow(car.ID, car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.Engine.ID)
-	mock.ExpectQuery("select \\* from cars where carId = \\?").WithArgs(car.ID).WillReturnRows(rows)
+
 	prep := mock.ExpectPrepare(query)
 	prep.ExpectExec().WithArgs("Roadster", 2000, "Tesla", "Electric", car.ID).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	// DB error
-	rows = sqlmock.NewRows([]string{"carID", "name", "yearOfManufacture", "brand", "fuelType", "engineId"}).
-		AddRow(car.ID, car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.Engine.ID)
-	mock.ExpectQuery("select \\* from cars where carId = \\?").WithArgs("1").WillReturnRows(rows)
+
 	prep = mock.ExpectPrepare(query)
 	prep.ExpectExec().WillReturnError(errors.New("DB error"))
-
-	// CarNotExists error
-	mock.ExpectQuery("select \\* from cars where carId = \\?").WithArgs("").WillReturnError(customErrors.CarNotExists())
 
 	tests := []struct {
 		desc     string
@@ -186,7 +179,6 @@ func TestStore_Update(t *testing.T) {
 	}{
 		{"Success", &car, &car, nil},
 		{"DB error", &model.Car{ID: "1"}, nil, errors.New("DB error")},
-		{"Not exists", &model.Car{}, nil, customErrors.CarNotExists()},
 	}
 
 	for i, tc := range tests {

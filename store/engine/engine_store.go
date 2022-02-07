@@ -54,12 +54,6 @@ func (s engineStore) Create(engine *model.Engine) (*model.Engine, error) {
 }
 
 func (s engineStore) Update(engine *model.Engine) (*model.Engine, error) {
-	// check if record exists in table
-	_, err := s.GetByID(engine.ID)
-	if err != nil {
-		return nil, err
-	}
-
 	stmt, err := s.db.Prepare(updateEngine)
 	if err != nil {
 		return nil, err
