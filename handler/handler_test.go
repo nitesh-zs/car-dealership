@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"errors"
+
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,8 +11,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
+	"github.com/nsf/jsondiff"
 	"github.com/stretchr/testify/assert"
-	"github.com/wI2L/jsondiff"
 
 	customErrors "carAPI/custom-errors"
 	"carAPI/mocks"
@@ -103,15 +104,16 @@ func TestHandler_Get(t *testing.T) {
 			"?brand=&withEngine=false",
 			http.StatusOK,
 			[]byte(`[{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
-							"engine":{}},{"carId":"2","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari",
-							"fuelType":"Diesel","engine":{}}]`),
+							"engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}},
+							{"carId":"2","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
+							"engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}}]`),
 		},
 		{
 			"Fetch Tesla cars without engine",
 			"?brand=Tesla",
 			http.StatusOK,
 			[]byte(`[{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
-							"engine":{}}]`),
+							"engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}}]`),
 		},
 		{
 			"Fetch all cars with engine",
@@ -150,8 +152,10 @@ func TestHandler_Get(t *testing.T) {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected status %v\tGot %v", i, tc.desc, tc.statusCode, result.StatusCode)
 		}
 
-		_, err := jsondiff.CompareJSON(tc.resp, body)
-		if err != nil {
+		options := jsondiff.DefaultJSONOptions()
+		diff, _ := jsondiff.Compare(tc.resp, body, &options)
+
+		if diff != jsondiff.FullMatch {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, string(tc.resp), string(body))
 		}
 	}
@@ -218,8 +222,10 @@ func TestHandler_GetById(t *testing.T) {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected status %v\tGot %v", i, tc.desc, tc.statusCode, result.StatusCode)
 		}
 
-		_, err := jsondiff.CompareJSON(tc.resp, body)
-		if err != nil {
+		options := jsondiff.DefaultConsoleOptions()
+		diff, _ := jsondiff.Compare(tc.resp, body, &options)
+
+		if diff != jsondiff.FullMatch {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, string(tc.resp), string(body))
 		}
 	}
@@ -232,7 +238,7 @@ func TestHandler_Create(t *testing.T) {
 	m := mocks.NewMockCarService(mockCtrl)
 
 	m.EXPECT().Create(car1()).Return(car1(), nil)
-	m.EXPECT().Create(car2()).Return(&model.Car{}, errors.New("server error"))
+	m.EXPECT().Create(car2()).Return(nil, errors.New("server error"))
 
 	tests := []struct {
 		desc       string
@@ -265,36 +271,35 @@ func TestHandler_Create(t *testing.T) {
 			"Validation Error",
 			bytes.NewReader([]byte("{}")),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`),
+			[]byte(`{"error":{"code":"missing param(s)","requiredParams":"[name brand fuelType yearOfManufacture]"}}`),
 		},
 		{
 			"Invalid Year",
 			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2100,"brand":"Tesla","fuelType":"Electric",
 							"engine":{"range":400}}`)),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"invalid body", "message":"invalid year of manufacture"}}`),
+			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of yearOfManufacture"}}`),
 		},
 		{
 			"Invalid Brand",
 			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Pesla","fuelType":"Electric",
 							"engine":{"range":400}}`)),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"invalid body", "message":"supported brands are Tesla, Ferrari, Porsche and BMW"}}`),
+			[]byte(`{"error":{"code":"invalid body","message":"Invalid Value of brand"}}`),
 		},
 		{
 			"Invalid FuelType",
-			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":200,"brand":"Tesla","fuelType":"CNG",
+			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"CNG",
 							"engine":{"range":400}}`)),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"invalid body", "message":"fuelType must be Electric, Petrol or Diesel"}}`),
+			[]byte(`{"error":{"code":"invalid body","message":"Invalid Value of fuelType"}}`),
 		},
 	}
 
 	h := New(m)
 
 	for i, tc := range tests {
-		r := httptest.NewRequest(http.MethodGet, "/car", tc.body)
+		r := httptest.NewRequest(http.MethodPost, "/car", tc.body)
 		w := httptest.NewRecorder()
 		h.Create(w, r)
 		result := w.Result()
@@ -307,8 +312,10 @@ func TestHandler_Create(t *testing.T) {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected status %v\tGot %v", i, tc.desc, tc.statusCode, result.StatusCode)
 		}
 
-		_, err := jsondiff.CompareJSON(tc.resp, body)
-		if err != nil {
+		options := jsondiff.DefaultConsoleOptions()
+		diff, _ := jsondiff.Compare(tc.resp, body, &options)
+
+		if diff != jsondiff.FullMatch {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, string(tc.resp), string(body))
 		}
 	}
@@ -359,8 +366,7 @@ func TestHandler_Update(t *testing.T) {
 			"1",
 			bytes.NewReader([]byte("{}")),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`),
+			[]byte(`{"error":{"code":"missing param(s)", "requiredParams":"[name brand fuelType yearOfManufacture]"}}`),
 		},
 		{
 			"Invalid Year",
@@ -368,7 +374,7 @@ func TestHandler_Update(t *testing.T) {
 			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2100,"fuelType":"Electric",
 							"engine":{"range":400}}`)),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"invalid body", "message":"invalid year of manufacture"}}`),
+			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of yearOfManufacture"}}`),
 		},
 		{
 			"Invalid Brand",
@@ -376,22 +382,22 @@ func TestHandler_Update(t *testing.T) {
 			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Pesla","fuelType":"Electric",
 							"engine":{"range":400}}`)),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"invalid body", "message":"supported brands are Tesla, Ferrari, Porsche and BMW"}}`),
+			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of brand"}}`),
 		},
 		{
 			"Invalid FuelType",
 			"1",
-			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":200,"brand":"Tesla","fuelType":"CNG",
+			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"CNG",
 							"engine":{"range":400}}`)),
 			http.StatusBadRequest,
-			[]byte(`{"error":{"code":"invalid body", "message":"fuelType must be Electric, Petrol or Diesel"}}`),
+			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of fuelType"}}`),
 		},
 	}
 
 	h := New(m)
 
 	for i, tc := range tests {
-		r := httptest.NewRequest(http.MethodGet, "/car", tc.body)
+		r := httptest.NewRequest(http.MethodPut, "/car", tc.body)
 		w := httptest.NewRecorder()
 		m := make(map[string]string)
 
@@ -403,15 +409,16 @@ func TestHandler_Update(t *testing.T) {
 
 		result := w.Result()
 		body, _ := io.ReadAll(result.Body)
-
 		result.Body.Close()
 
 		if result.StatusCode != tc.statusCode {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected status %v\tGot %v", i, tc.desc, tc.statusCode, result.StatusCode)
 		}
 
-		_, err := jsondiff.CompareJSON(tc.resp, body)
-		if err != nil {
+		options := jsondiff.DefaultConsoleOptions()
+		diff, _ := jsondiff.Compare(tc.resp, body, &options)
+
+		if diff != jsondiff.FullMatch {
 			t.Errorf("Testcase[%v] failed (%v)\nExpected:\n%v\nGot:\n%v", i, tc.desc, string(tc.resp), string(body))
 		}
 	}
@@ -456,7 +463,7 @@ func TestHandler_Delete(t *testing.T) {
 	h := New(m)
 
 	for i, tc := range tests {
-		r := httptest.NewRequest(http.MethodGet, "/car", nil)
+		r := httptest.NewRequest(http.MethodDelete, "/car", nil)
 		w := httptest.NewRecorder()
 		m := make(map[string]string)
 

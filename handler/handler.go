@@ -59,11 +59,11 @@ func (h handler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	ID := vars["id"]
+	id := vars["id"]
 
-	car, err := h.svc.GetByID(ID)
+	car, err := h.svc.GetByID(id)
 	if err != nil {
-		handleServerErr(err, ID, w)
+		handleServerErr(err, id, w)
 		return
 	}
 
@@ -91,13 +91,21 @@ func (h handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// validate params
-	if !validateParams(&car, w) {
+	// validate car
+	err = validateCar(&car)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"error":{"code":"invalid body","message":"%v"}}`, err)
+
 		return
 	}
 
-	// validate car
-	if !validateCar(&car, w) {
+	// validate params
+	err = validateParams(&car)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"error":{"code":"missing param(s)","requiredParams":"%v"}}`, err)
+
 		return
 	}
 
@@ -132,13 +140,21 @@ func (h handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// validate params
-	if !validateParams(&car, w) {
+	// validate car
+	err = validateCar(&car)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"error":{"code":"invalid body","message":"%v"}}`, err)
+
 		return
 	}
 
-	// validate car
-	if !validateCar(&car, w) {
+	// validate params
+	err = validateParams(&car)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"error":{"code":"missing param(s)","requiredParams":"%v"}}`, err)
+
 		return
 	}
 
@@ -162,11 +178,11 @@ func (h handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) Delete(w http.ResponseWriter, r *http.Request) {
-	ID := mux.Vars(r)["id"]
+	id := mux.Vars(r)["id"]
 
-	err := h.svc.Delete(ID)
+	err := h.svc.Delete(id)
 	if err != nil {
-		handleServerErr(err, ID, w)
+		handleServerErr(err, id, w)
 		return
 	}
 
@@ -174,16 +190,14 @@ func (h handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleServerErr(err error, id string, w http.ResponseWriter) {
-	switch err.(type) {
-	default:
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"error":{"code":"DB error"}}`)
-
-	case customErrors.EntityNotExists:
+	if err == customErrors.CarNotExists() {
 		log.Println(err)
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, `{"error":{"code":"entity not found","id":"`+id+`"}}`)
+	} else {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"error":{"code":"DB error"}}`)
 	}
 }
 
@@ -199,112 +213,102 @@ func handleParseErr(err error, w http.ResponseWriter) {
 	fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"cannot parse given body"}}`)
 }
 
-func validateParams(car *model.Car, w http.ResponseWriter) bool {
+func validateParams(car *model.Car) error {
 	// validate necessary car parameters are passed
-	if car.Name == "" || car.Brand == "" || car.FuelType == "" || car.YearOfManufacture == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`)
+	missingParams := make([]string, 0)
 
-		return false
+	if car.Name == "" {
+		missingParams = append(missingParams, model.ParamName)
 	}
 
-	// validate necessary engine parameters are passed
-	if !validateEngine(car, w) {
-		return false
+	if car.Brand == "" {
+		missingParams = append(missingParams, model.ParamBrand)
 	}
 
-	return true
+	if car.FuelType == "" {
+		missingParams = append(missingParams, model.ParamFuelType)
+	}
+
+	if car.YearOfManufacture == 0 {
+		missingParams = append(missingParams, model.ParamYearOfManufacture)
+	}
+
+	// validate engine params
+	missingParams = append(missingParams, validateEngineParams(car)...)
+
+	if len(missingParams) != 0 {
+		return customErrors.MissingParams{
+			RequiredParams: missingParams,
+		}
+	}
+
+	return nil
 }
 
-func validateCar(car *model.Car, w http.ResponseWriter) bool {
+func validateEngineParams(car *model.Car) []string {
+	missingParams := make([]string, 0)
+
+	switch car.FuelType {
+	case model.ValueElectric:
+		if car.Engine.Range == 0 {
+			missingParams = append(missingParams, model.ParamRange)
+		}
+
+	case model.ValuePetrol, model.ValueDiesel:
+		if car.Engine.Displacement == 0 {
+			missingParams = append(missingParams, model.ParamDisplacement)
+		}
+
+		if car.Engine.NoOfCylinders == 0 {
+			missingParams = append(missingParams, model.ParamNoOfCylinders)
+		}
+	}
+
+	return missingParams
+}
+
+func validateCar(car *model.Car) error {
 	// validate year of manufacture
-	if !validateYearOfManufacture(car, w) {
-		return false
+	err := validateYearOfManufacture(car.YearOfManufacture)
+	if err != nil {
+		return err
 	}
 
 	// validate brand
-	if !validateBrand(car, w) {
-		return false
+	err = validateBrand(car.Brand)
+	if err != nil {
+		return err
 	}
 
 	// validate fuel type
-	if !validateFuelType(car, w) {
-		return false
+	err = validateFuelType(car.FuelType)
+	if err != nil {
+		return err
 	}
 
-	return true
+	return nil
 }
 
-func validateEngine(car *model.Car, w http.ResponseWriter) bool {
-	switch car.FuelType {
-	case "Electric":
-		if !validateElectricEngine(car, w) {
-			return false
-		}
-
-	default:
-		if !validateNonElectricEngine(car, w) {
-			return false
-		}
+func validateYearOfManufacture(year int) error {
+	if (year < model.MinYear && year != 0) || year > time.Now().Year() {
+		return customErrors.InvalidYOM()
 	}
 
-	return true
+	return nil
 }
 
-func validateYearOfManufacture(car *model.Car, w http.ResponseWriter) bool {
-	if (car.YearOfManufacture < 1866 && car.YearOfManufacture != 0) || car.YearOfManufacture > time.Now().Year() {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"invalid year of manufacture"}}`)
-
-		return false
+func validateBrand(brand string) error {
+	if brand != "" && brand != model.ValueTesla && brand != model.ValueFerrari && brand != model.ValuePorsche && brand != model.ValueBMW {
+		return customErrors.InvalidBrand()
 	}
 
-	return true
+	return nil
 }
 
-func validateBrand(car *model.Car, w http.ResponseWriter) bool {
-	if car.Brand != "" && car.Brand != "Tesla" && car.Brand != "Ferrari" && car.Brand != "Porsche" && car.Brand != "BMW" {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"supported brands are Tesla, Ferrari, Porsche and BMW"}}`)
-
-		return false
+func validateFuelType(fuelType string) error {
+	if fuelType != "" && fuelType != model.ValueElectric && fuelType != model.ValueDiesel && fuelType != model.ValuePetrol {
+		return customErrors.InvalidFuelType()
 	}
 
-	return true
-}
-
-func validateFuelType(car *model.Car, w http.ResponseWriter) bool {
-	if car.FuelType != "" && car.FuelType != "Electric" && car.FuelType != "Diesel" && car.FuelType != "Petrol" {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"invalid body", "message":"fuelType must be Electric, Petrol or Diesel"}}`)
-
-		return false
-	}
-
-	return true
-}
-
-func validateElectricEngine(car *model.Car, w http.ResponseWriter) bool {
-	if car.Engine.Range == 0 || car.Engine.Displacement != 0 || car.Engine.NoOfCylinders != 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`)
-
-		return false
-	}
-
-	return true
-}
-
-func validateNonElectricEngine(car *model.Car, w http.ResponseWriter) bool {
-	if car.Engine.Range != 0 || car.Engine.Displacement == 0 || car.Engine.NoOfCylinders == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"missing param(s)", "requiredParams":["name", "yearOfManufacture","brand",
-							"fuelType", "engine"],"engineParams":"either range or displacement and noOfCylinders must be passed"}}`)
-
-		return false
-	}
-
-	return true
+	return nil
 }

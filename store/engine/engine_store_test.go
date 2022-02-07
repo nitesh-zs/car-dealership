@@ -47,8 +47,8 @@ func TestEngineStore_GetByID(t *testing.T) {
 		err    error
 	}{
 		{"Success", engine.ID, &engine, nil},
-		{"Not exists", "1", &model.Engine{}, customErrors.EngineNotExists()},
-		{"DB error", "2", &model.Engine{}, errors.New("DB error")},
+		{"Not exists", "1", nil, customErrors.EngineNotExists()},
+		{"DB error", "2", nil, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
@@ -88,7 +88,7 @@ func TestEngineStore_Create(t *testing.T) {
 		err      error
 	}{
 		{"Success", &engine, &engine, nil},
-		{"DB error", &model.Engine{}, &model.Engine{}, errors.New("DB error")},
+		{"DB error", &model.Engine{}, nil, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
@@ -96,7 +96,9 @@ func TestEngineStore_Create(t *testing.T) {
 
 		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
 
-		engine.ID = tc.expected.ID
+		if engine != nil {
+			engine.ID = tc.expected.ID
+		}
 
 		assert.Equalf(t, tc.expected, engine, "Testcase[%v] (%v)", i, tc.desc)
 	}
@@ -139,8 +141,8 @@ func TestEngineStore_Update(t *testing.T) {
 		err      error
 	}{
 		{"Success", &engine, &engine, nil},
-		{"Not exists", &model.Engine{}, &model.Engine{}, customErrors.CarNotExists()},
-		{"DB error", &engine, &model.Engine{}, errors.New("DB error")},
+		{"Not exists", &model.Engine{}, nil, customErrors.CarNotExists()},
+		{"DB error", &engine, nil, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {

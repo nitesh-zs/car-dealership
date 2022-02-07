@@ -21,15 +21,15 @@ func NewEngineStore(db *sql.DB) engineStore {
 func (s engineStore) GetByID(id string) (*model.Engine, error) {
 	var engine model.Engine
 
-	row := s.db.QueryRow("select * from engines where engineId = ?", id)
+	row := s.db.QueryRow(getEngineByID, id)
 	err := row.Scan(&engine.ID, &engine.Displacement, &engine.NoOfCylinders, &engine.Range)
 
 	if err == sql.ErrNoRows {
-		return &model.Engine{}, customErrors.CarNotExists()
+		return nil, customErrors.CarNotExists()
 	}
 
 	if err != nil {
-		return &model.Engine{}, err
+		return nil, err
 	}
 
 	return &engine, nil
@@ -37,17 +37,17 @@ func (s engineStore) GetByID(id string) (*model.Engine, error) {
 
 func (s engineStore) Create(engine *model.Engine) (*model.Engine, error) {
 	engine.ID = uuid.NewString()
-	stmt, err := s.db.Prepare("insert into engines (engineId, displacement, noOfCylinder, `range`) values (?, ?, ?, ?)")
+	stmt, err := s.db.Prepare(insertEngine)
 
 	if err != nil {
-		return &model.Engine{}, err
+		return nil, err
 	}
 
 	defer stmt.Close()
 
 	_, err = stmt.Exec(engine.ID, engine.Displacement, engine.NoOfCylinders, engine.Range)
 	if err != nil {
-		return &model.Engine{}, err
+		return nil, err
 	}
 
 	return engine, nil
@@ -57,26 +57,26 @@ func (s engineStore) Update(engine *model.Engine) (*model.Engine, error) {
 	// check if record exists in table
 	_, err := s.GetByID(engine.ID)
 	if err != nil {
-		return &model.Engine{}, err
+		return nil, err
 	}
 
-	stmt, err := s.db.Prepare("update engines set displacement = ?, noOfCylinder = ?, `range` = ? where engineId = ?")
+	stmt, err := s.db.Prepare(updateEngine)
 	if err != nil {
-		return &model.Engine{}, err
+		return nil, err
 	}
 
 	defer stmt.Close()
 
 	_, err = stmt.Exec(engine.Displacement, engine.NoOfCylinders, engine.Range, engine.ID)
 	if err != nil {
-		return &model.Engine{}, err
+		return nil, err
 	}
 
 	return engine, nil
 }
 
 func (s engineStore) Delete(id string) error {
-	stmt, err := s.db.Prepare(`delete from engines where engineId = ?`)
+	stmt, err := s.db.Prepare(deleteEngine)
 	if err == sql.ErrNoRows {
 		return customErrors.CarNotExists()
 	}

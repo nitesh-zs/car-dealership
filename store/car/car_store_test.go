@@ -89,8 +89,8 @@ func TestStore_GetByID(t *testing.T) {
 		err  error
 	}{
 		{"Success", car.ID, &car, nil},
-		{"Not exists", "1", &model.Car{}, customErrors.CarNotExists()},
-		{"DB error", "2", &model.Car{}, errors.New("DB error")},
+		{"Not exists", "1", nil, customErrors.CarNotExists()},
+		{"DB error", "2", nil, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
@@ -131,7 +131,7 @@ func TestStore_Create(t *testing.T) {
 		err      error
 	}{
 		{"Success", &car, &car2, nil},
-		{"DB error", &model.Car{}, &model.Car{}, errors.New("DB error")},
+		{"DB error", &model.Car{}, nil, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {
@@ -139,7 +139,9 @@ func TestStore_Create(t *testing.T) {
 
 		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
 
-		car.ID = tc.expected.ID
+		if car != nil {
+			car.ID = tc.expected.ID
+		}
 
 		assert.Equalf(t, tc.expected, car, "Testcase[%v] (%v)", i, tc.desc)
 	}
@@ -183,8 +185,8 @@ func TestStore_Update(t *testing.T) {
 		err      error
 	}{
 		{"Success", &car, &car, nil},
-		{"DB error", &model.Car{ID: "1"}, &model.Car{}, errors.New("DB error")},
-		{"Not exists", &model.Car{}, &model.Car{}, customErrors.CarNotExists()},
+		{"DB error", &model.Car{ID: "1"}, nil, errors.New("DB error")},
+		{"Not exists", &model.Car{}, nil, customErrors.CarNotExists()},
 	}
 
 	for i, tc := range tests {

@@ -28,9 +28,9 @@ func (s store) GetByBrand(brand string) ([]model.Car, error) {
 	)
 
 	if brand == "" {
-		rows, err = s.db.Query("select * from cars")
+		rows, err = s.db.Query(getAllCars)
 	} else {
-		rows, err = s.db.Query("select * from cars where brand = ?", brand)
+		rows, err = s.db.Query(getCarByBrand, brand)
 	}
 
 	if err != nil {
@@ -61,15 +61,15 @@ func (s store) GetByBrand(brand string) ([]model.Car, error) {
 func (s store) GetByID(id string) (*model.Car, error) {
 	var car model.Car
 
-	row := s.db.QueryRow("select * from cars where carId = ?", id)
+	row := s.db.QueryRow(getCarByID, id)
 	err := row.Scan(&car.ID, &car.Name, &car.YearOfManufacture, &car.Brand, &car.FuelType, &car.Engine.ID)
 
 	if err == sql.ErrNoRows {
-		return &model.Car{}, customErrors.CarNotExists()
+		return nil, customErrors.CarNotExists()
 	}
 
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	return &car, nil
@@ -78,18 +78,17 @@ func (s store) GetByID(id string) (*model.Car, error) {
 func (s store) Create(car *model.Car) (*model.Car, error) {
 	car.ID = uuid.NewString()
 
-	stmt, err := s.db.Prepare(`insert into cars (carId, name, yearOfManufacture, brand, fuelType, engineId)
-										values (?, ?, ?, ?, ?, ?)`)
+	stmt, err := s.db.Prepare(insertCar)
 
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	defer stmt.Close()
 
 	_, err = stmt.Exec(car.ID, car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.Engine.ID)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	return car, nil
@@ -99,20 +98,20 @@ func (s store) Update(car *model.Car) (*model.Car, error) {
 	// check if record exists in table
 	carFromDB, err := s.GetByID(car.ID)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
-	stmt, err := s.db.Prepare(`update cars set name = ?, yearOfManufacture = ?, brand = ?, fuelType = ? where carId = ?`)
+	stmt, err := s.db.Prepare(updateCar)
 
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	defer stmt.Close()
 
 	_, err = stmt.Exec(car.Name, car.YearOfManufacture, car.Brand, car.FuelType, car.ID)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	car.Engine.ID = carFromDB.Engine.ID
@@ -121,7 +120,7 @@ func (s store) Update(car *model.Car) (*model.Car, error) {
 }
 
 func (s store) Delete(id string) error {
-	stmt, err := s.db.Prepare(`delete from cars where carId = ?`)
+	stmt, err := s.db.Prepare(deleteCar)
 	if err == sql.ErrNoRows {
 		return customErrors.CarNotExists()
 	}

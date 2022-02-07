@@ -178,9 +178,9 @@ func TestService_GetByID(t *testing.T) {
 		Range:         400,
 	}, nil)
 
-	c.EXPECT().GetByID("2").Return(&model.Car{}, errors.New("server error"))
+	c.EXPECT().GetByID("2").Return(nil, errors.New("server error"))
 
-	c.EXPECT().GetByID("3").Return(&model.Car{}, customErrors.CarNotExists())
+	c.EXPECT().GetByID("3").Return(nil, customErrors.CarNotExists())
 
 	tests := []struct {
 		desc string
@@ -189,8 +189,8 @@ func TestService_GetByID(t *testing.T) {
 		err  error
 	}{
 		{"Success", "1", &car1, nil},
-		{"Server error", "2", &model.Car{}, errors.New("server error")},
-		{"Car not exists", "3", &model.Car{}, customErrors.CarNotExists()},
+		{"Server error", "2", nil, errors.New("server error")},
+		{"Car not exists", "3", nil, customErrors.CarNotExists()},
 	}
 
 	svc := New(c, e)
@@ -244,7 +244,7 @@ func TestService_Create(t *testing.T) {
 		Engine:            model.Engine{ID: "1"},
 	}, nil)
 
-	e.EXPECT().Create(&model.Engine{}).Return(&model.Engine{}, errors.New("server error"))
+	e.EXPECT().Create(&model.Engine{}).Return(nil, errors.New("server error"))
 
 	tests := []struct {
 		desc  string
@@ -266,7 +266,7 @@ func TestService_Create(t *testing.T) {
 		{
 			"Server error",
 			&model.Car{},
-			&model.Car{},
+			nil,
 			errors.New("server error")},
 	}
 
@@ -290,17 +290,6 @@ func TestService_Update(t *testing.T) {
 	c := mocks.NewMockCarStore(mockCtrl)
 	e := mocks.NewMockEngineStore(mockCtrl)
 
-	e.EXPECT().Update(&model.Engine{
-		Displacement:  0,
-		NoOfCylinders: 0,
-		Range:         400,
-	}).Return(&model.Engine{
-		ID:            "1",
-		Displacement:  0,
-		NoOfCylinders: 0,
-		Range:         400,
-	}, nil)
-
 	c.EXPECT().Update(&model.Car{
 		Name:              "Roadster",
 		YearOfManufacture: 2000,
@@ -316,7 +305,19 @@ func TestService_Update(t *testing.T) {
 		Engine:            model.Engine{ID: "1"},
 	}, nil)
 
-	e.EXPECT().Update(&model.Engine{}).Return(&model.Engine{}, errors.New("server error"))
+	e.EXPECT().Update(&model.Engine{
+		ID:            "1",
+		Displacement:  0,
+		NoOfCylinders: 0,
+		Range:         400,
+	}).Return(&model.Engine{
+		ID:            "1",
+		Displacement:  0,
+		NoOfCylinders: 0,
+		Range:         400,
+	}, nil)
+
+	c.EXPECT().Update(&model.Car{}).Return(nil, errors.New("server error"))
 
 	tests := []struct {
 		desc  string
@@ -338,7 +339,7 @@ func TestService_Update(t *testing.T) {
 		{
 			"Server error",
 			&model.Car{},
-			&model.Car{},
+			nil,
 			errors.New("server error"),
 		},
 	}

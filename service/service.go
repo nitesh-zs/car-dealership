@@ -45,12 +45,12 @@ func (s service) GetAll(brand string, withEngine bool) ([]model.Car, error) {
 func (s service) GetByID(id string) (*model.Car, error) {
 	car, err := s.carStore.GetByID(id)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	engine, err := s.engineStore.GetByID(car.Engine.ID)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	car.Engine = *engine
@@ -61,14 +61,14 @@ func (s service) GetByID(id string) (*model.Car, error) {
 func (s service) Create(car *model.Car) (*model.Car, error) {
 	engine, err := s.engineStore.Create(&car.Engine)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	car.Engine.ID = engine.ID
 
 	newCar, err := s.carStore.Create(car)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	newCar.Engine = *engine
@@ -79,14 +79,14 @@ func (s service) Create(car *model.Car) (*model.Car, error) {
 func (s service) Update(car *model.Car) (*model.Car, error) {
 	updatedCar, err := s.carStore.Update(car)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	car.Engine.ID = updatedCar.Engine.ID
 
 	updatedEngine, err := s.engineStore.Update(&car.Engine)
 	if err != nil {
-		return &model.Car{}, err
+		return nil, err
 	}
 
 	updatedCar.Engine = *updatedEngine
