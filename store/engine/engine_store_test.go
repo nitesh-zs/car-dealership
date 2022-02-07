@@ -22,6 +22,41 @@ func engine() model.Engine {
 	}
 }
 
+func TestEngineStore_GetAll(t *testing.T) {
+	engine := engine()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		log.Println(err)
+	}
+
+	defer db.Close()
+
+	store := NewEngineStore(db)
+	rows := sqlmock.NewRows([]string{"engineId", "displacement", "noOfCylinder", "range"}).
+		AddRow(engine.ID, engine.Displacement, engine.NoOfCylinders, engine.Range)
+
+	mock.ExpectQuery("select \\* from engines").WillReturnRows(rows)
+	mock.ExpectQuery("select \\* from engines").WillReturnError(errors.New("DB error"))
+
+	tests := []struct {
+		desc   string
+		engine map[string]model.Engine
+		err    error
+	}{
+		{"Success", map[string]model.Engine{engine.ID: engine}, nil},
+		{"DB error", nil, errors.New("DB error")},
+	}
+
+	for i, tc := range tests {
+		engine, err := store.GetAll()
+
+		assert.Equalf(t, tc.err, err, "Testcase[%v] (%v)", i, tc.desc)
+
+		assert.Equalf(t, tc.engine, engine, "Testcase[%v] (%v)", i, tc.desc)
+	}
+}
+
 func TestEngineStore_GetByID(t *testing.T) {
 	engine := engine()
 

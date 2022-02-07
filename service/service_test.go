@@ -80,36 +80,24 @@ func TestService_GetAll(t *testing.T) {
 
 	m.EXPECT().GetByBrand("Tesla").Return([]model.Car{car3()}, nil).AnyTimes()
 
-	s.EXPECT().GetByID("1").Return(&model.Engine{
-		ID:            "1",
-		Displacement:  0,
-		NoOfCylinders: 0,
-		Range:         400,
-	}, nil).AnyTimes()
-
 	m.EXPECT().GetByBrand("").Return([]model.Car{car3(), car4()}, nil).AnyTimes()
-
-	s.EXPECT().GetByID("2").Return(&model.Engine{
-		ID:            "2",
-		Displacement:  600,
-		NoOfCylinders: 4,
-		Range:         0,
-	}, nil).AnyTimes()
 
 	m.EXPECT().GetByBrand("Jaguar").Return(nil, errors.New("server error"))
 
-	m.EXPECT().GetByBrand("BMW").Return([]model.Car{
-		{
-			ID:                "1",
-			Name:              "X",
-			YearOfManufacture: 2000,
-			Brand:             "BMW",
-			FuelType:          "Petrol",
-			Engine:            model.Engine{ID: "3"},
+	s.EXPECT().GetAll().Return(map[string]model.Engine{
+		"1": model.Engine{
+			ID:            "1",
+			Displacement:  0,
+			NoOfCylinders: 0,
+			Range:         400,
 		},
-	}, nil)
-
-	s.EXPECT().GetByID("3").Return(&model.Engine{}, errors.New("server error"))
+		"2": model.Engine{
+			ID:            "2",
+			Displacement:  600,
+			NoOfCylinders: 4,
+			Range:         0,
+		},
+	}, nil).AnyTimes()
 
 	tests := []struct {
 		desc  string
@@ -131,12 +119,6 @@ func TestService_GetAll(t *testing.T) {
 		}, {
 			"Server error in fetching car",
 			"Jaguar",
-			nil,
-			errors.New("server error"),
-		},
-		{
-			"Server error in fetching engine",
-			"BMW",
 			nil,
 			errors.New("server error"),
 		},

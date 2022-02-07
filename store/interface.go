@@ -14,6 +14,7 @@ type CarStore interface {
 }
 
 type EngineStore interface {
+	GetAll() (map[string]model.Engine, error)
 	GetByID(id string) (*model.Engine, error)
 	Create(engine *model.Engine) (*model.Engine, error)
 	Update(engine *model.Engine) (*model.Engine, error)

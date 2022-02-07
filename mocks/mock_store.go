@@ -160,6 +160,21 @@ func (mr *MockEngineStoreMockRecorder) Delete(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockEngineStore)(nil).Delete), id)
 }
 
+// GetAll mocks base method.
+func (m *MockEngineStore) GetAll() (map[string]model.Engine, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAll")
+	ret0, _ := ret[0].(map[string]model.Engine)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAll indicates an expected call of GetAll.
+func (mr *MockEngineStoreMockRecorder) GetAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockEngineStore)(nil).GetAll))
+}
+
 // GetByID mocks base method.
 func (m *MockEngineStore) GetByID(id string) (*model.Engine, error) {
 	m.ctrl.T.Helper()

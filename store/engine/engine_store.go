@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql"
+	"log"
 
 	"github.com/google/uuid"
 
@@ -16,6 +17,36 @@ type engineStore struct {
 //nolint:revive //engineStore should not be exported
 func NewEngineStore(db *sql.DB) engineStore {
 	return engineStore{db: db}
+}
+
+func (s engineStore) GetAll() (map[string]model.Engine, error) {
+	var engine model.Engine
+	engines := make(map[string]model.Engine)
+
+	rows, err := s.db.Query(getAllEngines)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		rows.Close()
+
+		err = rows.Err()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
+	for rows.Next() {
+		err := rows.Scan(&engine.ID, &engine.Displacement, &engine.NoOfCylinders, &engine.Range)
+		if err != nil {
+			return nil, err
+		}
+
+		engines[engine.ID] = engine
+	}
+
+	return engines, nil
 }
 
 func (s engineStore) GetByID(id string) (*model.Engine, error) {

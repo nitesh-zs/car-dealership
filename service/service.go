@@ -25,18 +25,21 @@ func (s service) GetAll(brand string, withEngine bool) ([]model.Car, error) {
 	}
 
 	// if withEngine is true, then populate the Engine data in Cars
-	if withEngine {
-		for i := range cars {
-			car := cars[i]
-			eID := car.Engine.ID
-			engine, err := s.engineStore.GetByID(eID)
+	if !withEngine {
+		return cars, nil
+	}
 
-			if err != nil {
-				return nil, err
-			}
+	engines, err := s.engineStore.GetAll()
+	if err != nil {
+		return nil, err
+	}
 
-			cars[i].Engine = *engine
-		}
+	for i := range cars {
+		car := cars[i]
+		eID := car.Engine.ID
+		engine := engines[eID]
+
+		cars[i].Engine = engine
 	}
 
 	return cars, nil
