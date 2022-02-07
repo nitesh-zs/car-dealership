@@ -24,8 +24,9 @@ func (s store) GetByBrand(brand string) ([]model.Car, error) {
 		car  model.Car
 		rows *sql.Rows
 		err  error
-		cars []model.Car
 	)
+
+	cars := make([]model.Car, 0)
 
 	if brand == "" {
 		rows, err = s.db.Query(getAllCars)
@@ -34,7 +35,7 @@ func (s store) GetByBrand(brand string) ([]model.Car, error) {
 	}
 
 	if err != nil {
-		return nil, err
+		return []model.Car{}, err
 	}
 
 	defer func() {

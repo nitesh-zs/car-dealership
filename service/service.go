@@ -24,16 +24,18 @@ func (s service) GetAll(brand string, withEngine bool) ([]model.Car, error) {
 		return nil, err
 	}
 
-	// if withEngine is true, then populate the Engine data in Cars
+	// if withEngine is false, then just return the cars
 	if !withEngine {
 		return cars, nil
 	}
 
+	// fetch all engines mapped to their IDs
 	engines, err := s.engineStore.GetAll()
 	if err != nil {
 		return nil, err
 	}
 
+	// map engines to their corresponding cars
 	for i := range cars {
 		car := cars[i]
 		eID := car.Engine.ID

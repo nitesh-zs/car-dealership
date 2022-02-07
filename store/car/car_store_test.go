@@ -51,8 +51,8 @@ func TestStore_GetByBrand(t *testing.T) {
 		err   error
 	}{
 		{"Fetch all Tesla cars", "Tesla", []model.Car{car}, nil},
-		{"Fetch all cars", "", nil, nil},
-		{"DB error", "", nil, errors.New("DB error")},
+		{"Fetch all cars", "", []model.Car{}, nil},
+		{"DB error", "", []model.Car{}, errors.New("DB error")},
 	}
 
 	for i, tc := range tests {

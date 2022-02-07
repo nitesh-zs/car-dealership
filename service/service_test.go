@@ -217,14 +217,7 @@ func TestService_Create(t *testing.T) {
 			NoOfCylinders: 0,
 			Range:         400,
 		},
-	}).Return(&model.Car{
-		ID:                "1",
-		Name:              "Roadster",
-		YearOfManufacture: 2000,
-		Brand:             "Tesla",
-		FuelType:          "Electric",
-		Engine:            model.Engine{ID: "1"},
-	}, nil)
+	}).Return(&car1, nil)
 
 	e.EXPECT().Create(&model.Engine{}).Return(nil, errors.New("server error"))
 

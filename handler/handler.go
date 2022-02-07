@@ -291,11 +291,13 @@ func validateEngineParams(car *model.Car) []string {
 	missingParams := make([]string, 0)
 
 	switch car.FuelType {
+	// for electric cars, range must be present
 	case model.ValueElectric:
 		if car.Engine.Range == 0 {
 			missingParams = append(missingParams, model.ParamRange)
 		}
 
+	// for non-electric cars, displacement and noOfCylinders must be present
 	case model.ValuePetrol, model.ValueDiesel:
 		if car.Engine.Displacement == 0 {
 			missingParams = append(missingParams, model.ParamDisplacement)
