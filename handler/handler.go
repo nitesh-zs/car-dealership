@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gorilla/mux"
 
 	customErrors "carAPI/custom-errors"
@@ -60,6 +62,16 @@ func (h handler) Get(w http.ResponseWriter, r *http.Request) {
 func (h handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
+
+	// parse ID
+	err := parseID(id)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid ID"}}`)
+
+		return
+	}
 
 	car, err := h.svc.GetByID(id)
 	if err != nil {
@@ -159,11 +171,22 @@ func (h handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := mux.Vars(r)["id"]
+
+	// parse ID
+	err = parseID(id)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid ID"}}`)
+
+		return
+	}
+
 	car.ID = id
 
 	updatedCar, err := h.svc.Update(&car)
 	if err != nil {
-		handleServerErr(err, car.ID, w)
+		handleServerErr(err, id, w)
 		return
 	}
 
@@ -180,13 +203,32 @@ func (h handler) Update(w http.ResponseWriter, r *http.Request) {
 func (h handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	err := h.svc.Delete(id)
+	// parse ID
+	err := parseID(id)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid ID"}}`)
+
+		return
+	}
+
+	err = h.svc.Delete(id)
 	if err != nil {
 		handleServerErr(err, id, w)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func parseID(id string) error {
+	_, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func handleServerErr(err error, id string, w http.ResponseWriter) {

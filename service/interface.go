@@ -1,6 +1,8 @@
 package service
 
-import "carAPI/model"
+import (
+	"carAPI/model"
+)
 
 type CarService interface {
 

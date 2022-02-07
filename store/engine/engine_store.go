@@ -21,6 +21,7 @@ func NewEngineStore(db *sql.DB) engineStore {
 
 func (s engineStore) GetAll() (map[string]model.Engine, error) {
 	var engine model.Engine
+
 	engines := make(map[string]model.Engine)
 
 	rows, err := s.db.Query(getAllEngines)

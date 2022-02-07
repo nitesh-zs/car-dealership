@@ -21,7 +21,7 @@ import (
 
 func car1() *model.Car {
 	return &model.Car{
-		ID:                "1",
+		ID:                id1(),
 		Name:              "Roadster",
 		YearOfManufacture: 2000,
 		Brand:             "Tesla",
@@ -37,7 +37,7 @@ func car1() *model.Car {
 
 func car2() *model.Car {
 	return &model.Car{
-		ID:                "2",
+		ID:                id2(),
 		Name:              "Abc",
 		YearOfManufacture: 2020,
 		Brand:             "Ferrari",
@@ -53,7 +53,7 @@ func car2() *model.Car {
 
 func car3() *model.Car {
 	return &model.Car{
-		ID:                "1",
+		ID:                id1(),
 		Name:              "Roadster",
 		YearOfManufacture: 2000,
 		Brand:             "Tesla",
@@ -64,13 +64,25 @@ func car3() *model.Car {
 
 func car4() *model.Car {
 	return &model.Car{
-		ID:                "2",
+		ID:                id2(),
 		Name:              "Abc",
 		YearOfManufacture: 2020,
 		Brand:             "Ferrari",
 		FuelType:          "Diesel",
 		Engine:            model.Engine{},
 	}
+}
+
+func id1() string {
+	return "86a4cc77-4a2b-4215-8a2c-ff3ecca19627"
+}
+
+func id2() string {
+	return "4924f6ff-5684-4d3c-8ca3-24486a1fc205"
+}
+
+func id3() string {
+	return "568492e8-df97-47ff-a0f2-18b638f767a6"
 }
 
 func TestHandler_Get(t *testing.T) {
@@ -95,7 +107,8 @@ func TestHandler_Get(t *testing.T) {
 			"Fetch Tesla cars with engine",
 			"?brand=Tesla&withEngine=true",
 			http.StatusOK,
-			[]byte(`[{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
+			[]byte(`[{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,
+							"brand":"Tesla","fuelType":"Electric",
 							"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}}]`),
 		},
 
@@ -103,25 +116,26 @@ func TestHandler_Get(t *testing.T) {
 			"Fetch all cars without engine",
 			"?brand=&withEngine=false",
 			http.StatusOK,
-			[]byte(`[{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
-							"engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}},
-							{"carId":"2","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
+			[]byte(`[{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,
+							"brand":"Tesla","fuelType":"Electric","engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}},
+							{"carId":"4924f6ff-5684-4d3c-8ca3-24486a1fc205","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
 							"engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}}]`),
 		},
 		{
 			"Fetch Tesla cars without engine",
 			"?brand=Tesla",
 			http.StatusOK,
-			[]byte(`[{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
+			[]byte(`[{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,
+							"brand":"Tesla","fuelType":"Electric",
 							"engine":{"engineId":"","displacement":0,"noOfCylinders":0,"range":0}}]`),
 		},
 		{
 			"Fetch all cars with engine",
 			"?withEngine=true",
 			http.StatusOK,
-			[]byte(`[{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
-							"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}},
-							{"carId":"2","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
+			[]byte(`[{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,
+							"brand":"Tesla","fuelType":"Electric","engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}},
+							{"carId":"4924f6ff-5684-4d3c-8ca3-24486a1fc205","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
 							"engine":{"engineId":"2","displacement":600,"noOfCylinders":4,"range":0}}]`),
 		},
 		{
@@ -167,9 +181,9 @@ func TestHandler_GetById(t *testing.T) {
 
 	m := mocks.NewMockCarService(mockCtrl)
 
-	m.EXPECT().GetByID("1").Return(car1(), nil)
-	m.EXPECT().GetByID("2").Return(&model.Car{}, customErrors.CarNotExists())
-	m.EXPECT().GetByID("3").Return(&model.Car{}, errors.New("server error"))
+	m.EXPECT().GetByID(id1()).Return(car1(), nil)
+	m.EXPECT().GetByID(id2()).Return(&model.Car{}, customErrors.CarNotExists())
+	m.EXPECT().GetByID(id3()).Return(&model.Car{}, errors.New("server error"))
 
 	tests := []struct {
 		desc       string
@@ -179,24 +193,30 @@ func TestHandler_GetById(t *testing.T) {
 	}{
 		{
 			"Success",
-			"1",
+			id1(),
 			http.StatusOK,
-			[]byte(`{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
+			[]byte(`{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
 							"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}}`),
 		},
 
 		{
 			"Car not exists",
-			"2",
+			id2(),
 			http.StatusNotFound,
-			[]byte(`{"error":{"code":"entity not found", "id":"2"}}`),
+			[]byte(`{"error":{"code":"entity not found", "id":"4924f6ff-5684-4d3c-8ca3-24486a1fc205"}}`),
 		},
 
 		{
 			"Server Error",
-			"3",
+			id3(),
 			http.StatusInternalServerError,
 			[]byte(`{"error":{"code":"DB error"}}`),
+		},
+		{
+			"Invalid ID",
+			"1",
+			http.StatusBadRequest,
+			[]byte(`{"error":{"code": "invalid ID"}}`),
 		},
 	}
 
@@ -248,16 +268,18 @@ func TestHandler_Create(t *testing.T) {
 	}{
 		{
 			"Success",
-			bytes.NewReader([]byte(`{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
-							"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}}`)),
+			bytes.NewReader([]byte(`{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,
+											"brand":"Tesla","fuelType":"Electric",
+											"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}}`)),
 			http.StatusCreated,
-			[]byte(`{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
+			[]byte(`{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
 							"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}}`),
 		},
 		{
 			"Server Error",
-			bytes.NewReader([]byte(`{"carId":"2","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
-							"engine":{"engineId":"2","displacement":600,"noOfCylinders":4,"range":0}}`)),
+			bytes.NewReader([]byte(`{"carId":"4924f6ff-5684-4d3c-8ca3-24486a1fc205","name":"Abc",
+											"yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
+												"engine":{"engineId":"2","displacement":600,"noOfCylinders":4,"range":0}}`)),
 			http.StatusInternalServerError,
 			[]byte(`{"error":{"code":"DB error"}}`),
 		},
@@ -326,7 +348,6 @@ func TestHandler_Update(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	m := mocks.NewMockCarService(mockCtrl)
-
 	m.EXPECT().Update(car1()).Return(car1(), nil)
 	m.EXPECT().Update(car2()).Return(&model.Car{}, errors.New("server error"))
 
@@ -339,18 +360,18 @@ func TestHandler_Update(t *testing.T) {
 	}{
 		{
 			"Success",
-			"1",
+			"86a4cc77-4a2b-4215-8a2c-ff3ecca19627",
 			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
-							"engine":{"engineId":"1","range":500}}`)),
+											"engine":{"engineId":"1","range":500}}`)),
 			http.StatusOK,
-			[]byte(`{"carId":"1","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
+			[]byte(`{"carId":"86a4cc77-4a2b-4215-8a2c-ff3ecca19627","name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric",
 							"engine":{"engineId":"1","displacement":0,"noOfCylinders":0,"range":500}}`),
 		},
 		{
 			"Server Error",
-			"2",
-			bytes.NewReader([]byte(`{"carId":"2","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari","fuelType":"Diesel",
-							"engine":{"engineId":"2","displacement":600,"noOfCylinders":4,"range":0}}`)),
+			"4924f6ff-5684-4d3c-8ca3-24486a1fc205",
+			bytes.NewReader([]byte(`{"carId":"4924f6ff-5684-4d3c-8ca3-24486a1fc205","name":"Abc","yearOfManufacture":2020,"brand":"Ferrari",
+											"fuelType":"Diesel","engine":{"engineId":"2","displacement":600,"noOfCylinders":4,"range":0}}`)),
 			http.StatusInternalServerError,
 			[]byte(`{"error":{"code":"DB error"}}`),
 		},
@@ -371,29 +392,32 @@ func TestHandler_Update(t *testing.T) {
 		{
 			"Invalid Year",
 			"1",
-			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2100,"fuelType":"Electric",
-							"engine":{"range":400}}`)),
+			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2100,"fuelType":"Electric","engine":{"range":400}}`)),
 			http.StatusBadRequest,
 			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of yearOfManufacture"}}`),
 		},
 		{
 			"Invalid Brand",
 			"1",
-			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Pesla","fuelType":"Electric",
-							"engine":{"range":400}}`)),
+			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Pesla","fuelType":"Electric","engine":{"range":400}}`)),
 			http.StatusBadRequest,
 			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of brand"}}`),
 		},
 		{
 			"Invalid FuelType",
 			"1",
-			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"CNG",
-							"engine":{"range":400}}`)),
+			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"CNG","engine":{"range":400}}`)),
 			http.StatusBadRequest,
 			[]byte(`{"error":{"code":"invalid body", "message":"Invalid Value of fuelType"}}`),
 		},
+		{
+			"Invalid ID",
+			"1",
+			bytes.NewReader([]byte(`{"name":"Roadster","yearOfManufacture":2000,"brand":"Tesla","fuelType":"Electric","engine":{"range":400}}`)),
+			http.StatusBadRequest,
+			[]byte(`{"error":{"code":"invalid ID"}}`),
+		},
 	}
-
 	h := New(m)
 
 	for i, tc := range tests {
@@ -402,9 +426,7 @@ func TestHandler_Update(t *testing.T) {
 		m := make(map[string]string)
 
 		m["id"] = tc.id
-
 		r = mux.SetURLVars(r, m)
-
 		h.Update(w, r)
 
 		result := w.Result()
@@ -430,9 +452,9 @@ func TestHandler_Delete(t *testing.T) {
 
 	m := mocks.NewMockCarService(mockCtrl)
 
-	m.EXPECT().Delete("1").Return(nil)
-	m.EXPECT().Delete("2").Return(customErrors.CarNotExists())
-	m.EXPECT().Delete("3").Return(errors.New("server error"))
+	m.EXPECT().Delete(id1()).Return(nil)
+	m.EXPECT().Delete(id2()).Return(customErrors.CarNotExists())
+	m.EXPECT().Delete(id3()).Return(errors.New("server error"))
 
 	tests := []struct {
 		desc       string
@@ -442,21 +464,27 @@ func TestHandler_Delete(t *testing.T) {
 	}{
 		{
 			"Success",
-			"1",
+			id1(),
 			http.StatusNoContent,
 			[]byte(""),
 		},
 		{
 			"Car not exists",
-			"2",
+			id2(),
 			http.StatusNotFound,
-			[]byte(`{"error":{"code":"entity not found","id":"2"}}`),
+			[]byte(`{"error":{"code":"entity not found","id":"4924f6ff-5684-4d3c-8ca3-24486a1fc205"}}`),
 		},
 		{
 			"Server Error",
-			"3",
+			id3(),
 			http.StatusInternalServerError,
 			[]byte(`{"error":{"code":"DB error"}}`),
+		},
+		{
+			"Invalid ID",
+			"1",
+			http.StatusBadRequest,
+			[]byte(`{"error":{"code":"invalid ID"}}`),
 		},
 	}
 

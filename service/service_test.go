@@ -85,13 +85,13 @@ func TestService_GetAll(t *testing.T) {
 	m.EXPECT().GetByBrand("Jaguar").Return(nil, errors.New("server error"))
 
 	s.EXPECT().GetAll().Return(map[string]model.Engine{
-		"1": model.Engine{
+		"1": {
 			ID:            "1",
 			Displacement:  0,
 			NoOfCylinders: 0,
 			Range:         400,
 		},
-		"2": model.Engine{
+		"2": {
 			ID:            "2",
 			Displacement:  600,
 			NoOfCylinders: 4,
@@ -265,6 +265,7 @@ func TestService_Create(t *testing.T) {
 
 func TestService_Update(t *testing.T) {
 	car1 := car1()
+	car2 := car2()
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -272,13 +273,8 @@ func TestService_Update(t *testing.T) {
 	c := mocks.NewMockCarStore(mockCtrl)
 	e := mocks.NewMockEngineStore(mockCtrl)
 
-	c.EXPECT().Update(&model.Car{
-		Name:              "Roadster",
-		YearOfManufacture: 2000,
-		Brand:             "Tesla",
-		FuelType:          "Electric",
-		Engine:            model.Engine{Range: 400},
-	}).Return(&model.Car{
+	c.EXPECT().GetByID(car1.ID).Return(&car1, nil)
+	c.EXPECT().Update(&car1).Return(&model.Car{
 		ID:                "1",
 		Name:              "Roadster",
 		YearOfManufacture: 2000,
@@ -299,7 +295,8 @@ func TestService_Update(t *testing.T) {
 		Range:         400,
 	}, nil)
 
-	c.EXPECT().Update(&model.Car{}).Return(nil, errors.New("server error"))
+	c.EXPECT().GetByID(car2.ID).Return(&car2, nil)
+	c.EXPECT().Update(&car2).Return(nil, errors.New("server error"))
 
 	tests := []struct {
 		desc  string
@@ -309,18 +306,12 @@ func TestService_Update(t *testing.T) {
 	}{
 		{
 			"Success",
-			&model.Car{
-				Name:              "Roadster",
-				YearOfManufacture: 2000,
-				Brand:             "Tesla",
-				FuelType:          "Electric",
-				Engine:            model.Engine{Range: 400},
-			},
+			&car1,
 			&car1,
 			nil},
 		{
 			"Server error",
-			&model.Car{},
+			&car2,
 			nil,
 			errors.New("server error"),
 		},
